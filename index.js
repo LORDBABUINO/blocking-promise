@@ -3,23 +3,27 @@ const {
   isMainThread,
   parentPort,
   workerData,
-} = require('worker_threads')
-const { join } = require('path')
-;(async () => {
+} = require("worker_threads");
+
+const { join } = require("path");
+
+const { fork: forkChildProcess } = require("child_process");
+(async () => {
   const createThreadedFunction =
     (func) =>
     (...args) =>
       new Promise((resolve, reject) => {
-        new Worker(join(__dirname, 'worker.js'), {
+        new Worker(join(__dirname, "worker.js"), {
           workerData: { func: func.toString(), args },
           resourceLimits: { cpu: 2 },
         })
-          .on('message', resolve)
-          .on('error', reject)
-          .on('exit', (code) => {
-            if (code) reject(new Error(`Worker stopped with exit code ${code}`))
-          })
-      }).catch((error) => console.log({ error }))
+          .on("message", resolve)
+          .on("error", reject)
+          .on("exit", (code) => {
+            if (code)
+              reject(new Error(`Worker stopped with exit code ${code}`));
+          });
+      }).catch((error) => console.log({ error }));
   // isMainThread
   //   ? new Promise((resolve, reject) => {
   //       new Worker(join(__dirname, 'worker.js'), {
@@ -36,93 +40,189 @@ const { join } = require('path')
   //       new Function('return ' + workerData.func)()(...args),
   //     )
 
+  const createChildProcessFunction =
+    (func) =>
+    (...args) =>
+      new Promise((resolve, reject) => {
+        const child = forkChildProcess(join(__dirname, "child.js"))
+          .on("message", resolve)
+          .on("error", reject)
+          .on("exit", (code) => {
+            if (code)
+              reject(new Error(`Worker stopped with exit code ${code}`));
+          });
+        child.send({ func: func.toString(), args });
+      }).catch((error) => console.log({ error }));
+
   const blockingWithForPromiseBuilder = () => {
     // blocking
     for (let i = 0; i < 1000000000; i++) {
       if (i % 100000000 === 0) {
-        console.log(`blockingWithForPromiseBuilder: ${i}`)
+        console.log(`blockingWithForPromiseBuilder: ${i}`);
       }
     }
-    console.log(`blockingWithForPromiseBuilder: done`)
-  }
+    console.log(`blockingWithForPromiseBuilder: done`);
+  };
 
   const blockingWithForPromiseBuilderSmall = () => {
     // blocking
     for (let i = 0; i < 10; i++) {
-      console.log(`blockingWithForPromiseBuilderSmall: ${i}`)
+      console.log(`blockingWithForPromiseBuilderSmall: ${i}`);
     }
-    console.log(`blockingWithForPromiseBuilderSmall: done`)
-  }
+    console.log(`blockingWithForPromiseBuilderSmall: done`);
+  };
 
   const blockingWithMapPromiseBuilder = () => {
     // blocking and exploding
     Array(100000)
       .fill(0)
       .map((_, i) => {
-        if (i % 10000 === 0) {
-          console.log(`blockingWithMapPromiseBuilder: ${i}`)
+        if (i % 1000 === 0) {
+          console.log(`blockingWithMapPromiseBuilder: ${i}`);
         }
-        return 0
-      })
-    console.log(`blockingWithMapPromiseBuilder: done`)
-  }
+        return 0;
+      });
+    console.log(`blockingWithMapPromiseBuilder: done`);
+  };
 
   const blockingWithForeachPromiseBuilder = () => {
     // blocking
     Array(100000)
       .fill(0)
       .forEach((_, i) => {
-        if (i % 10000 === 0) {
-          console.log(`blockingWithForeachPromiseBuilder: ${i}`)
+        if (i % 1000 === 0) {
+          console.log(`blockingWithForeachPromiseBuilder: ${i}`);
         }
-      })
-    console.log(`blockingWithForeachPromiseBuilder: done`)
-  }
+      });
+    console.log(`blockingWithForeachPromiseBuilder: done`);
+  };
 
   const blockingWithWhilePromiseBuilder = () => {
     // blocking
-    let i = 0
+    let i = 0;
     while (i < 1000000000) {
       if (i % 100000000 === 0) {
-        console.log(`blockingWithWhilePromiseBuilder: ${i}`)
+        console.log(`blockingWithWhilePromiseBuilder: ${i}`);
       }
-      i++
+      i++;
     }
-    console.log(`blockingWithWhilePromiseBuilder: done`)
-  }
+    console.log(`blockingWithWhilePromiseBuilder: done`);
+  };
 
   const blockingWithFilterPromiseBuilder = () => {
     // blocking
     Array(100000)
       .fill(0)
       .filter((_, i) => {
-        if (i % 10000 === 0) {
-          console.log(`blockingWithFilterPromiseBuilder: ${i}`)
+        if (i % 1000 === 0) {
+          console.log(`blockingWithFilterPromiseBuilder: ${i}`);
         }
-        return true
-      })
-    console.log(`blockingWithFilterPromiseBuilder: done`)
-  }
+        return true;
+      });
+    console.log(`blockingWithFilterPromiseBuilder: done`);
+  };
 
-  createThreadedFunction(blockingWithForPromiseBuilder)()
-  console.log('for unblocked')
+  // NOTE: workers are blocking each other. Try to use childProccess or cluster instead
 
-  createThreadedFunction(blockingWithWhilePromiseBuilder)()
-  console.log('while unblocked')
+  // createThreadedFunction(blockingWithForPromiseBuilder)()
+  // console.log('for unblocked')
 
-  createThreadedFunction(blockingWithMapPromiseBuilder)()
-  console.log('map unblocked')
+  // createThreadedFunction(blockingWithWhilePromiseBuilder)()
+  // console.log('while unblocked')
 
-  createThreadedFunction(blockingWithForeachPromiseBuilder)()
-  console.log('foreach unblocked')
+  // createThreadedFunction(blockingWithMapPromiseBuilder)()
+  // console.log('map unblocked')
 
-  createThreadedFunction(blockingWithFilterPromiseBuilder)()
-  console.log('filter unblocked')
+  // createThreadedFunction(blockingWithForeachPromiseBuilder)()
+  // console.log('foreach unblocked')
 
-  createThreadedFunction(blockingWithForPromiseBuilderSmall)()
-  console.log('forSmall unblocked')
+  // createThreadedFunction(blockingWithFilterPromiseBuilder)()
+  // console.log('filter unblocked')
 
-  // NOTE: workers are blocking each other. Try to use childProccess instead
+  // createThreadedFunction(blockingWithForPromiseBuilderSmall)()
+  // console.log('forSmall unblocked')
+
+  // NOTE: setImmediate is not working is being blocked by the main thread
+
+  // setImmediate(createThreadedFunction(blockingWithForPromiseBuilder));
+  // console.log("for unblocked");
+  // setImmediate(createThreadedFunction(blockingWithWhilePromiseBuilder));
+  // console.log("while unblocked");
+  // setImmediate(createThreadedFunction(blockingWithMapPromiseBuilder));
+  // console.log("map unblocked");
+  // setImmediate(createThreadedFunction(blockingWithForeachPromiseBuilder));
+  // console.log("foreach unblocked");
+  // setImmediate(createThreadedFunction(blockingWithFilterPromiseBuilder));
+  // console.log("filter unblocked");
+  // setImmediate(createThreadedFunction(blockingWithForPromiseBuilderSmall));
+  // console.log("forSmall unblocked");
+
+  // createChildProcessFunction(blockingWithForPromiseBuilder)();
+  // console.log("for unblocked");
+  // createChildProcessFunction(blockingWithWhilePromiseBuilder)();
+  // console.log("while unblocked");
+  // createChildProcessFunction(blockingWithForeachPromiseBuilder)();
+  // console.log("foreach unblocked");
+  // createChildProcessFunction(blockingWithMapPromiseBuilder)();
+  // console.log("map unblocked");
+  // createChildProcessFunction(blockingWithFilterPromiseBuilder)();
+  // console.log("filter unblocked");
+  // createChildProcessFunction(blockingWithForPromiseBuilderSmall)();
+  // console.log("forSmall unblocked");
+
+  // console.time("sync");
+  // blockingWithForPromiseBuilderSmall();
+  // blockingWithForPromiseBuilder();
+  // blockingWithWhilePromiseBuilder();
+  // blockingWithMapPromiseBuilder();
+  // blockingWithForeachPromiseBuilder();
+  // blockingWithFilterPromiseBuilder();
+  // console.timeEnd("sync");
+
+  // NOTE: childProcess is works very well
+
+  console.time("childProcess.all");
+  const blockingWithForPromiseBuilderSmallPromise = createChildProcessFunction(
+    blockingWithForPromiseBuilderSmall
+  )();
+  const blockingWithForPromiseBuilderPromise = createChildProcessFunction(
+    blockingWithForPromiseBuilder
+  )();
+  const blockingWithWhilePromiseBuilderPromise = createChildProcessFunction(
+    blockingWithWhilePromiseBuilder
+  )();
+  const blockingWithMapPromiseBuilderPromise = createChildProcessFunction(
+    blockingWithMapPromiseBuilder
+  )();
+  const blockingWithForeachPromiseBuilderPromise = createChildProcessFunction(
+    blockingWithForeachPromiseBuilder
+  )();
+  const blockingWithFilterPromiseBuilderPromise = createChildProcessFunction(
+    blockingWithFilterPromiseBuilder
+  )();
+
+  const memoryUsageChildProcess = process.memoryUsage();
+  await Promise.all([
+    blockingWithForPromiseBuilderSmallPromise,
+    blockingWithForPromiseBuilderPromise,
+    blockingWithWhilePromiseBuilderPromise,
+    blockingWithMapPromiseBuilderPromise,
+    blockingWithForeachPromiseBuilderPromise,
+    blockingWithFilterPromiseBuilderPromise,
+  ]);
+  console.timeEnd("childProcess.all");
+
+  const memoryUsageChildProcessFormated = Object.keys(
+    memoryUsageChildProcess
+  ).reduce(
+    (acc, key) => ({
+      ...acc,
+      [key]: `${(memoryUsageChildProcess[key] / 1024 / 1024).toFixed(2)} MB`,
+    }),
+    {}
+  );
+
+  console.log({ memoryUsageChildProcessFormated });
 
   // await Promise.all([
   //   createThreadedFunction(blockingWithForPromiseBuilder)(),
@@ -147,4 +247,4 @@ const { join } = require('path')
   // }
   // loop1()
   // loop2()
-})()
+})();
