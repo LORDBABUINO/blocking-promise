@@ -8,6 +8,8 @@ const {
 const { join } = require("path");
 
 const { fork: forkChildProcess } = require("child_process");
+const cluster = require("cluster");
+
 (async () => {
   const createThreadedFunction =
     (func) =>
@@ -24,21 +26,23 @@ const { fork: forkChildProcess } = require("child_process");
               reject(new Error(`Worker stopped with exit code ${code}`));
           });
       }).catch((error) => console.log({ error }));
-  // isMainThread
-  //   ? new Promise((resolve, reject) => {
-  //       new Worker(join(__dirname, 'worker.js'), {
-  //         workerData: { func: func.toString(), args },
-  //       })
-  //         .on('message', resolve)
-  //         .on('error', reject)
-  //         .on('exit', (code) => {
-  //           if (code)
-  //             reject(new Error(`Worker stopped with exit code ${code}`))
-  //         })
-  //     }).catch((error) => console.log({ error }))
-  //   : parentPort.postMessage(
-  //       new Function('return ' + workerData.func)()(...args),
-  //     )
+
+  const createClusterFunction =
+    (func) =>
+    (...args) => {
+      console.log({ cluster, clusterFork: cluster.fork });
+      return new Promise((resolve, reject) => {
+        const worker = cluster
+          .fork()
+          .on("message", resolve)
+          .on("error", reject)
+          .on("exit", (code) => {
+            if (code)
+              reject(new Error(`Worker stopped with exit code ${code}`));
+          });
+        worker.send({ func: func.toString(), args });
+      }).catch((error) => console.log({ error }));
+    };
 
   const createChildProcessFunction =
     (func) =>
@@ -181,43 +185,88 @@ const { fork: forkChildProcess } = require("child_process");
 
   // NOTE: childProcess is works very well
 
-  console.time("childProcess.all");
-  const blockingWithForPromiseBuilderSmallPromise = createChildProcessFunction(
+  // console.time("childProcess.all");
+  // const blockingWithForPromiseBuilderSmallPromise = createChildProcessFunction(
+  //   blockingWithForPromiseBuilderSmall
+  // )();
+  // const blockingWithForPromiseBuilderPromise = createChildProcessFunction(
+  //   blockingWithForPromiseBuilder
+  // )();
+  // const blockingWithWhilePromiseBuilderPromise = createChildProcessFunction(
+  //   blockingWithWhilePromiseBuilder
+  // )();
+  // const blockingWithMapPromiseBuilderPromise = createChildProcessFunction(
+  //   blockingWithMapPromiseBuilder
+  // )();
+  // const blockingWithForeachPromiseBuilderPromise = createChildProcessFunction(
+  //   blockingWithForeachPromiseBuilder
+  // )();
+  // const blockingWithFilterPromiseBuilderPromise = createChildProcessFunction(
+  //   blockingWithFilterPromiseBuilder
+  // )();
+
+  // const memoryUsageChildProcess = process.memoryUsage();
+  // await Promise.all([
+  //   blockingWithForPromiseBuilderSmallPromise,
+  //   blockingWithForPromiseBuilderPromise,
+  //   blockingWithWhilePromiseBuilderPromise,
+  //   blockingWithMapPromiseBuilderPromise,
+  //   blockingWithForeachPromiseBuilderPromise,
+  //   blockingWithFilterPromiseBuilderPromise,
+  // ]);
+  // console.timeEnd("childProcess.all");
+
+  // const memoryUsageChildProcessFormated = Object.keys(
+  //   memoryUsageChildProcess
+  // ).reduce(
+  //   (acc, key) => ({
+  //     ...acc,
+  //     [key]: `${(memoryUsageChildProcess[key] / 1024 / 1024).toFixed(2)} MB`,
+  //   }),
+  //   {}
+  // );
+
+  // console.log({ memoryUsageChildProcessFormated });
+
+  // NOTE: cluster is works very well
+
+  console.time("cluster.all");
+  const blockingWithForPromiseBuilderSmallPromise = createClusterFunction(
     blockingWithForPromiseBuilderSmall
   )();
-  const blockingWithForPromiseBuilderPromise = createChildProcessFunction(
-    blockingWithForPromiseBuilder
-  )();
-  const blockingWithWhilePromiseBuilderPromise = createChildProcessFunction(
-    blockingWithWhilePromiseBuilder
-  )();
-  const blockingWithMapPromiseBuilderPromise = createChildProcessFunction(
-    blockingWithMapPromiseBuilder
-  )();
-  const blockingWithForeachPromiseBuilderPromise = createChildProcessFunction(
-    blockingWithForeachPromiseBuilder
-  )();
-  const blockingWithFilterPromiseBuilderPromise = createChildProcessFunction(
-    blockingWithFilterPromiseBuilder
-  )();
+  // const blockingWithForPromiseBuilderPromise = createClusterFunction(
+  //   blockingWithForPromiseBuilder
+  // )();
+  // const blockingWithWhilePromiseBuilderPromise = createClusterFunction(
+  //   blockingWithWhilePromiseBuilder
+  // )();
+  // const blockingWithMapPromiseBuilderPromise = createClusterFunction(
+  //   blockingWithMapPromiseBuilder
+  // )();
+  // const blockingWithForeachPromiseBuilderPromise = createClusterFunction(
+  //   blockingWithForeachPromiseBuilder
+  // )();
+  // const blockingWithFilterPromiseBuilderPromise = createClusterFunction(
+  //   blockingWithFilterPromiseBuilder
+  // )();
 
-  const memoryUsageChildProcess = process.memoryUsage();
+  const memoryUsageCluster = process.memoryUsage();
   await Promise.all([
     blockingWithForPromiseBuilderSmallPromise,
-    blockingWithForPromiseBuilderPromise,
-    blockingWithWhilePromiseBuilderPromise,
-    blockingWithMapPromiseBuilderPromise,
-    blockingWithForeachPromiseBuilderPromise,
-    blockingWithFilterPromiseBuilderPromise,
+    // blockingWithForPromiseBuilderPromise,
+    // blockingWithWhilePromiseBuilderPromise,
+    // blockingWithMapPromiseBuilderPromise,
+    // blockingWithForeachPromiseBuilderPromise,
+    // blockingWithFilterPromiseBuilderPromise,
   ]);
-  console.timeEnd("childProcess.all");
+  console.timeEnd("cluster.all");
 
   const memoryUsageChildProcessFormated = Object.keys(
-    memoryUsageChildProcess
+    memoryUsageCluster
   ).reduce(
     (acc, key) => ({
       ...acc,
-      [key]: `${(memoryUsageChildProcess[key] / 1024 / 1024).toFixed(2)} MB`,
+      [key]: `${(memoryUsageCluster[key] / 1024 / 1024).toFixed(2)} MB`,
     }),
     {}
   );
