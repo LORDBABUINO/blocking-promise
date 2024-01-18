@@ -32,15 +32,17 @@ const cluster = require("cluster");
     (...args) => {
       console.log({ cluster, clusterFork: cluster.fork });
       return new Promise((resolve, reject) => {
-        const worker = cluster
-          .fork()
-          .on("message", resolve)
-          .on("error", reject)
-          .on("exit", (code) => {
-            if (code)
-              reject(new Error(`Worker stopped with exit code ${code}`));
-          });
-        worker.send({ func: func.toString(), args });
+        if (cluster.isMaster) {
+          const worker = cluster
+            .fork()
+            .on("message", resolve)
+            .on("error", reject)
+            .on("exit", (code) => {
+              if (code)
+                reject(new Error(`Worker stopped with exit code ${code}`));
+            });
+          worker.send({ func: func.toString(), args });
+        }
       }).catch((error) => console.log({ error }));
     };
 
@@ -232,7 +234,7 @@ const cluster = require("cluster");
 
   console.time("cluster.all");
   const blockingWithForPromiseBuilderSmallPromise = createClusterFunction(
-    blockingWithForPromiseBuilderSmall
+    blockingWithForPromiseBuilderSmall,
   )();
   // const blockingWithForPromiseBuilderPromise = createClusterFunction(
   //   blockingWithForPromiseBuilder
@@ -262,13 +264,13 @@ const cluster = require("cluster");
   console.timeEnd("cluster.all");
 
   const memoryUsageChildProcessFormated = Object.keys(
-    memoryUsageCluster
+    memoryUsageCluster,
   ).reduce(
     (acc, key) => ({
       ...acc,
       [key]: `${(memoryUsageCluster[key] / 1024 / 1024).toFixed(2)} MB`,
     }),
-    {}
+    {},
   );
 
   console.log({ memoryUsageChildProcessFormated });
